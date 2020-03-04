@@ -7,7 +7,6 @@ Additional shows console status (active titles, OS version, locale) and media st
 import json
 import urwid
 import logging
-import asyncio
 from binascii import hexlify
 
 from xbox.webapi.scripts.tui import WebAPIDisplay
@@ -591,8 +590,8 @@ class SGDisplay(object):
     def do_quit(self):
         raise urwid.ExitMainLoop()
 
-    def run(self):
-        eventloop = urwid.AsyncioEventLoop(loop=asyncio.get_event_loop())
+    def run(self, loop):
+        eventloop = urwid.AsyncioEventLoop(loop=loop)
         self.loop = urwid.MainLoop(
             urwid.SolidFill('x'),
             handle_mouse=False,
@@ -627,11 +626,12 @@ def save_consoles(filepath, consoles):
         json.dump(consoles, fh, indent=2)
 
 
-def run_tui(consoles_filepath, addr, liveid, tokens_filepath, do_refresh):
+def run_tui(loop, consoles_filepath, addr, liveid, tokens_filepath, do_refresh):
     """
     Main entrypoint for TUI
 
     Args:
+        loop (AbstractEventLoop): Eventloop
         consoles_filepath (str): Console json filepath
         addr (str): IP address of console
         liveid (str): LiveID to connect to
@@ -653,7 +653,7 @@ def run_tui(consoles_filepath, addr, liveid, tokens_filepath, do_refresh):
         return ExitCodes.AuthenticationError
 
     app = SGDisplay(consoles, app.auth_mgr)
-    app.run()
+    app.run(loop)
 
     if consoles_filepath:
         save_consoles(consoles_filepath, app.consoles.consoles)

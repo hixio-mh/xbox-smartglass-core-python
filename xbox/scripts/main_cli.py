@@ -324,6 +324,7 @@ async def main(command=None):
     """
     Main entrypoint
     """
+    loop = asyncio.get_event_loop()
     auth_manager = None
     repl_server_handle = None  # Used for Command.REPLServer
 
@@ -377,7 +378,6 @@ async def main(command=None):
             args.bind, args.port
         ))
 
-        loop = asyncio.get_event_loop()
         quart_server = loop.create_task(rest_app.run_task(args.bind, args.port))
 
         try:
@@ -398,7 +398,7 @@ async def main(command=None):
             LOGGER.debug('Removing StreamHandler {0} from root logger'.format(h))
             logging.root.removeHandler(h)
 
-        sys.exit(tui.run_tui(args.consoles, args.address,
+        sys.exit(tui.run_tui(loop, args.consoles, args.address,
                              args.liveid, args.tokens, args.refresh))
 
     elif 'tokens' in args:
@@ -448,7 +448,7 @@ async def main(command=None):
         """Powering off all discovered consoles"""
         for c in discovered:
             print('Powering off console {0}'.format(c))
-            c.power_off()
+            await c.power_off()
         sys.exit(ExitCodes.OK)
 
     """
@@ -507,7 +507,7 @@ async def main(command=None):
         Power off (single console)
         """
         print('Powering off console {0}'.format(console))
-        console.power_off()
+        await console.power_off()
         sys.exit(ExitCodes.OK)
 
     elif command == Commands.REPL or \
@@ -547,7 +547,7 @@ async def main(command=None):
         print('Starting Fallout 4 relay service...')
         console.add_manager(TitleManager)
         console.title.on_connection_info += fallout4_relay.on_connection_info
-        console.start_title_channel(title_id=fallout4_relay.FALLOUT_TITLE_ID)
+        await console.start_title_channel(title_id=fallout4_relay.FALLOUT_TITLE_ID)
         print('Fallout 4 relay started')
     elif command == Commands.GamepadInput:
         """
@@ -555,7 +555,7 @@ async def main(command=None):
         """
         print('Starting gamepad input handler...')
         console.add_manager(manager.InputManager)
-        gamepad_input.input_loop(console)
+        await gamepad_input.input_loop(console)
     elif command == Commands.TextInput:
         """
         Text input
@@ -573,7 +573,7 @@ async def main(command=None):
         LOGGER.debug('Starting REPL server protocol')
 
     LOGGER.debug('Starting console.protocol.serve_forever()')
-    console.protocol.serve_forever()
+    loop.run_forever()
 
     LOGGER.debug('Protocol serving exited')
     if repl_server_handle:

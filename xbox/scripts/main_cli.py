@@ -8,11 +8,12 @@ import sys
 import logging
 import argparse
 import functools
+import asyncio
 
 from logging.handlers import RotatingFileHandler
 from code import InteractiveConsole
 
-from gevent import signal, backdoor
+from gevent import backdoor
 
 from xbox.scripts import TOKENS_FILE, CONSOLES_FILE, LOG_FMT, \
     LOG_LEVEL_DEBUG_INCL_PACKETS, VerboseFormatter, ExitCodes
@@ -293,13 +294,13 @@ def choose_console_interactively(console_list):
     return console_list[int(response)]
 
 
-def cli_discover_consoles(args):
+async def cli_discover_consoles(args):
     """
     Discover consoles
     """
     LOGGER.info('Sending discovery packets to IP: {0}'
                 .format('IP: ' + args.address if args.address else '<MULTICAST>'))
-    discovered = Console.discover(addr=args.address, timeout=1)
+    discovered = await Console.discover(addr=args.address, timeout=1)
 
     if not len(discovered):
         LOGGER.error('No consoles discovered')
@@ -320,7 +321,7 @@ def cli_discover_consoles(args):
     return discovered
 
 
-def main(command=None):
+async def main(command=None):
     """
     Main entrypoint
     """
@@ -416,13 +417,13 @@ def main(command=None):
         LOGGER.info('Sending poweron packet for LiveId: {0} to {1}'
                     .format(args.liveid,
                             'IP: ' + args.address if args.address else '<MULTICAST>'))
-        Console.power_on(args.liveid, args.address, tries=10)
+        await Console.power_on(args.liveid, args.address, tries=10)
         sys.exit(0)
 
     """
     Discovery
     """
-    discovered = cli_discover_consoles(args)
+    discovered = await cli_discover_consoles(args)
 
     if command == Commands.Discover:
         """
@@ -484,7 +485,7 @@ def main(command=None):
     LOGGER.debug('XToken: {0}'.format(xtoken))
 
     LOGGER.info('Attempting connection...')
-    state = console.connect(userhash, xtoken.jwt)
+    state = await console.connect(userhash, xtoken.jwt)
     if state != ConnectionState.Connected:
         LOGGER.error('Connection failed! Console: {0}'.format(console))
         sys.exit(1)
@@ -492,7 +493,7 @@ def main(command=None):
     # FIXME: Waiting explicitly
     LOGGER.info('Connected to console: {0}'.format(console))
     LOGGER.debug('Waiting a second before proceeding...')
-    console.wait(1)
+    await console.wait(1)
 
     if command == Commands.PowerOff:
         """
@@ -559,7 +560,7 @@ def main(command=None):
         console.text.on_systemtext_done += text_input.on_text_done
 
     LOGGER.debug('Installing gevent SIGINT handler')
-    signal.signal(signal.SIGINT, lambda *a: console.protocol.stop())
+    # signal.signal(signal.SIGINT, lambda *a: console.protocol.stop())
 
     if repl_server_handle:
         LOGGER.debug('Starting REPL server protocol')
@@ -575,48 +576,48 @@ def main(command=None):
 
 def main_discover():
     """Entrypoint for discover script"""
-    main(Commands.Discover)
+    asyncio.run(main(Commands.Discover))
 
 
 def main_poweron():
     """Entrypoint for poweron script"""
-    main(Commands.PowerOn)
+    asyncio.run(main(Commands.PowerOn))
 
 
 def main_poweroff():
     """Entrypoint for poweroff script"""
-    main(Commands.PowerOff)
+    asyncio.run(main(Commands.PowerOff))
 
 
 def main_repl():
     """Entrypoint for REPL script"""
-    main(Commands.REPL)
+    asyncio.run(main(Commands.REPL))
 
 
 def main_replserver():
     """Entrypoint for REPL server script"""
-    main(Commands.REPLServer)
+    asyncio.run(main(Commands.REPLServer))
 
 
 def main_falloutrelay():
     """Entrypoint for Fallout 4 relay script"""
-    main(Commands.FalloutRelay)
+    asyncio.run(main(Commands.FalloutRelay))
 
 
 def main_textinput():
     """Entrypoint for Text input script"""
-    main(Commands.TextInput)
+    asyncio.run(main(Commands.TextInput))
 
 
 def main_gamepadinput():
     """Entrypoint for Gamepad input script"""
-    main(Commands.GamepadInput)
+    asyncio.run(main(Commands.GamepadInput))
 
 
 def main_tui():
     """Entrypoint for TUI script"""
-    main(Commands.TUI)
+    asyncio.run(main(Commands.TUI))
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

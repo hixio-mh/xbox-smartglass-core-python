@@ -572,10 +572,10 @@ class SmartglassProtocol:
         msg = factory.power_on(liveid)
 
         for i in range(tries):
-            self.send_message(msg, addr=BROADCAST)
-            self.send_message(msg, addr=MULTICAST)
+            await self.send_message(msg, addr=BROADCAST)
+            await self.send_message(msg, addr=MULTICAST)
             if addr:
-                self.send_message(msg, addr=addr)
+                await self.send_message(msg, addr=addr)
 
             await asyncio.sleep(0.1)
 

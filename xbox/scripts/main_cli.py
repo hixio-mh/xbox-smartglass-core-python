@@ -29,8 +29,7 @@ from xbox.sg.console import Console
 from xbox.sg.enum import ConnectionState
 
 # REST server imports
-from gevent import pywsgi as rest_pywsgi
-from xbox.rest.app import app as flask_app
+from xbox.rest.app import app as rest_app
 
 
 LOGGER = logging.getLogger(__name__)
@@ -378,8 +377,16 @@ async def main(command=None):
             args.bind, args.port
         ))
 
-        server = rest_pywsgi.WSGIServer((args.bind, args.port), flask_app)
-        server.serve_forever()
+        loop = asyncio.get_event_loop()
+        quart_server = loop.create_task(rest_app.run_task(args.bind, args.port))
+
+        try:
+            loop.run_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            await quart_server
+
         sys.exit(ExitCodes.OK)
     elif command == Commands.TUI:
         """

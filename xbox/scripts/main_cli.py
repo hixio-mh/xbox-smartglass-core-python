@@ -320,13 +320,18 @@ async def cli_discover_consoles(args):
     return discovered
 
 
-async def main(command=None):
+async def main_async(eventloop, command=None):
     """
-    Main entrypoint
+    Async Main entrypoint
+
+    Args:
+        eventloop (asyncio.AbstractEventLoop):
+        command (Commands):
+
+    Returns:
+         None
     """
-    loop = asyncio.get_event_loop()
     auth_manager = None
-    repl_server_handle = None  # Used for Command.REPLServer
 
     if command:
         # Take passed command and append actual cmdline
@@ -378,16 +383,7 @@ async def main(command=None):
             args.bind, args.port
         ))
 
-        quart_server = loop.create_task(rest_app.run_task(args.bind, args.port))
-
-        try:
-            loop.run_forever()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            await quart_server
-
-        sys.exit(ExitCodes.OK)
+        return eventloop.create_task(rest_app.run_task(args.bind, args.port))
     elif command == Commands.TUI:
         """
         Text user interface (powered by urwid)
@@ -398,7 +394,7 @@ async def main(command=None):
             LOGGER.debug('Removing StreamHandler {0} from root logger'.format(h))
             logging.root.removeHandler(h)
 
-        sys.exit(tui.run_tui(loop, args.consoles, args.address,
+        sys.exit(tui.run_tui(eventloop, args.consoles, args.address,
                              args.liveid, args.tokens, args.refresh))
 
     elif 'tokens' in args:
@@ -513,6 +509,7 @@ async def main(command=None):
     elif command == Commands.REPL or \
             command == Commands.REPLServer:
 
+        raise Exception('FIXME: Implement me with aioconsole')
         banner = 'You are connected to the console @ {0}\n'\
                  .format(console.address)
         banner += 'Type in \'console\' to acccess the object\n'
@@ -539,6 +536,7 @@ async def main(command=None):
                 listener=(args.bind, args.port),
                 banner=banner,
                 locals=scope_vars)
+            return repl_server_handle
 
     elif command == Commands.FalloutRelay:
         """
@@ -566,65 +564,68 @@ async def main(command=None):
         console.text.on_systemtext_input += functools.partial(text_input.on_text_input, console)
         console.text.on_systemtext_done += text_input.on_text_done
 
-    LOGGER.debug('Installing gevent SIGINT handler')
-    # signal.signal(signal.SIGINT, lambda *a: console.protocol.stop())
 
-    if repl_server_handle:
-        LOGGER.debug('Starting REPL server protocol')
+def main(command=None):
+    eventloop = asyncio.get_event_loop()
 
-    LOGGER.debug('Starting console.protocol.serve_forever()')
-    loop.run_forever()
+    LOGGER.debug('Entering main_async')
+    main_coro = main_async(eventloop, command)
 
-    LOGGER.debug('Protocol serving exited')
-    if repl_server_handle:
-        LOGGER.debug('Stopping REPL server protocol')
-        repl_server_handle.stop()
+    try:
+        LOGGER.debug('Calling eventloop.run_forever')
+        eventloop.run_until_complete(main_coro)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # cleanup
+        main_coro.close()
+        eventloop.close()
 
 
 def main_discover():
     """Entrypoint for discover script"""
-    asyncio.run(main(Commands.Discover))
+    main(Commands.Discover)
 
 
 def main_poweron():
     """Entrypoint for poweron script"""
-    asyncio.run(main(Commands.PowerOn))
+    main(Commands.PowerOn)
 
 
 def main_poweroff():
     """Entrypoint for poweroff script"""
-    asyncio.run(main(Commands.PowerOff))
+    main(Commands.PowerOff)
 
 
 def main_repl():
     """Entrypoint for REPL script"""
-    asyncio.run(main(Commands.REPL))
+    main(Commands.REPL)
 
 
 def main_replserver():
     """Entrypoint for REPL server script"""
-    asyncio.run(main(Commands.REPLServer))
+    main(Commands.REPLServer)
 
 
 def main_falloutrelay():
     """Entrypoint for Fallout 4 relay script"""
-    asyncio.run(main(Commands.FalloutRelay))
+    main(Commands.FalloutRelay)
 
 
 def main_textinput():
     """Entrypoint for Text input script"""
-    asyncio.run(main(Commands.TextInput))
+    main(Commands.TextInput)
 
 
 def main_gamepadinput():
     """Entrypoint for Gamepad input script"""
-    asyncio.run(main(Commands.GamepadInput))
+    main(Commands.GamepadInput)
 
 
 def main_tui():
     """Entrypoint for TUI script"""
-    asyncio.run(main(Commands.TUI))
+    main(Commands.TUI)
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()

@@ -46,10 +46,6 @@ from xbox.sg.utils.events import Event
 
 
 class Console(object):
-    # Used for global communication, aka. non-connected to any console (Discovery, PowerOn)
-    __transport__ = None
-    __protocol__ = None
-
     def __init__(self, address, name, uuid, liveid, flags=PrimaryDeviceFlag.Null, last_error=0, public_key=None):
         """
         Initialize an instance of Console
@@ -121,8 +117,7 @@ class Console(object):
         await asyncio.sleep(seconds)
 
     @classmethod
-    async def setup_protocol(cls, address=None, crypto=None):
-        loop = asyncio.get_running_loop()
+    async def setup_protocol(cls, loop, address=None, crypto=None):
         sock = SmartglassProtocol.get_multicast_enabled_socket()
         transport, protocol = await loop.create_datagram_endpoint(
             lambda: SmartglassProtocol(loop, address, crypto),
@@ -130,21 +125,6 @@ class Console(object):
         )
 
         return transport, protocol
-
-    @classmethod
-    async def ensure_global_protocol(cls):
-        """
-        Global protocol is used for non-connected-console actions
-        * Poweron
-        * Discovery
-
-        Returns:
-            None
-        """
-        if not cls.__protocol__:
-            transport, protocol = await cls.setup_protocol()
-            cls.__transport__ = transport
-            cls.__protocol__ = protocol
 
     async def _ensure_protocol_started(self):
         """
@@ -155,7 +135,8 @@ class Console(object):
             None
         """
         if not self.protocol:
-            transport, protocol = await Console.setup_protocol(self.address, self._crypto)
+            loop = asyncio.get_running_loop()
+            transport, protocol = await Console.setup_protocol(loop, self.address, self._crypto)
             self.transport = transport
             self.protocol = protocol
 
@@ -238,8 +219,9 @@ class Console(object):
             list: List of discovered consoles.
 
         """
-        await cls.ensure_global_protocol()
-        discovered = await cls.__protocol__.discover(*args, **kwargs)
+        loop = asyncio.get_running_loop()
+        transport, protocol = await cls.setup_protocol(loop)
+        discovered = await protocol.discover(*args, **kwargs)
         return [cls.from_message(a, m) for a, m in discovered.items()]
 
     @classmethod
@@ -271,8 +253,9 @@ class Console(object):
         Returns: None
 
         """
-        await cls.ensure_global_protocol()
-        await cls.__protocol__.power_on(liveid, addr, tries)
+        loop = asyncio.get_running_loop()
+        transport, protocol = await cls.setup_protocol(loop)
+        await protocol.power_on(liveid, addr, tries)
 
     async def _power_on(self, tries=2):
         await Console.power_on(self.liveid, self.address, tries)

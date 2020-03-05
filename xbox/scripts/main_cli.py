@@ -9,11 +9,9 @@ import logging
 import argparse
 import functools
 import asyncio
+import aioconsole
 
 from logging.handlers import RotatingFileHandler
-from code import InteractiveConsole
-
-from gevent import backdoor
 
 from xbox.scripts import TOKENS_FILE, CONSOLES_FILE, LOG_FMT, \
     LOG_LEVEL_DEBUG_INCL_PACKETS, VerboseFormatter, ExitCodes
@@ -508,8 +506,6 @@ async def main_async(eventloop, command=None):
 
     elif command == Commands.REPL or \
             command == Commands.REPLServer:
-
-        raise Exception('FIXME: Implement me with aioconsole')
         banner = 'You are connected to the console @ {0}\n'\
                  .format(console.address)
         banner += 'Type in \'console\' to acccess the object\n'
@@ -519,8 +515,9 @@ async def main_async(eventloop, command=None):
 
         if command == Commands.REPL:
             LOGGER.info('Starting up local REPL console')
-            repl_local = InteractiveConsole(locals=scope_vars)
-            repl_local.interact(banner)
+            console = aioconsole.AsynchronousConsole(locals=scope_vars, loop=eventloop)
+            await console.interact(banner)
+
         else:
 
             if args.port == 0:
@@ -532,11 +529,9 @@ async def main_async(eventloop, command=None):
             print(startinfo)
             LOGGER.info(startinfo)
 
-            repl_server_handle = backdoor.BackdoorServer(
-                listener=(args.bind, args.port),
-                banner=banner,
-                locals=scope_vars)
-            return repl_server_handle
+            server = await aioconsole.start_interactive_server(
+                host=args.bind, port=args.port, loop=eventloop)
+            await server
 
     elif command == Commands.FalloutRelay:
         """
